@@ -7,7 +7,7 @@ El análisis incorpora el uso de **ventanas móviles (rolling windows)** de 252 
 
 ### Metodologías Implementadas:
 - VaR y ES Paramétrico (Distribución Normal).
-- VaR y ES Paramétrico (Distribución t-Student ajustada por curtosis).
+- VaR y ES Paramétrico (Distribución t-Student).
 - VaR mediante Volatilidad Móvil (asumiendo $\mu = 0$).
 - Backtesting: Cálculo de violaciones para medir la eficiencia de cada modelo.
 
