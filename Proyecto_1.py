@@ -13,7 +13,6 @@ st.set_page_config(page_title="Proyecto Riesgo MCF", layout="wide", page_icon="�
 @st.cache_data
 def load_data(ticker, start_date):
     df = yf.download(ticker, start=start_date, auto_adjust=False)
-    # Manejar MultiIndex si ocurre
     prices = df['Adj Close'][ticker] if isinstance(df.columns, pd.MultiIndex) else df['Adj Close']
     returns = np.log(prices / prices.shift(1)).dropna()
     return prices, returns
@@ -33,33 +32,18 @@ st.title(f"📊 Proyecto de Riesgo de Mercado: {stock}")
 
 st.markdown("""
 ### Introducción
-En este proyecto estimamos los riesgos de mercado mediante dos medidas fundamentales: **Value at Risk (VaR)** y el **Expected Shortfall (ES)**. El objetivo es calcular qué tan bien se adaptan los distintos modelos en su forma paramétrica, histórica y simulada. Adicionalmente, utilizamos ventanas móviles (*rolling windows*) para evitar el sesgo de anticipación, finalizando con un *Backtesting* riguroso para comprobar su eficacia real en el mercado.
+En este proyecto estimamos los riesgos de mercado mediante dos medidas fundamentales: **Value at Risk (VaR)** y el **Expected Shortfall (ES)**. El objetivo es calcular qué tan bien se adaptan los distintos modelos en su forma paramétrica, histórica y simulada.
 """)
 
 with st.expander("¿Por qué elegimos Lockheed Martin (LMT)?", expanded=True):
-    st.write("""
-    Dado que el precio de las acciones refleja el entorno macroeconómico y geopolítico, un tema de alta relevancia actual son los conflictos bélicos (por ejemplo, las tensiones entre Israel e Irán, y la guerra entre Rusia y Ucrania). 
-    
-    En estos escenarios, el armamento militar es un factor clave. Es aquí donde entra **Lockheed Martin**, el contratista militar número uno a nivel mundial por ventas de defensa. Considerando que aproximadamente el 73% de sus ingresos provienen del gobierno de los Estados Unidos, resulta fascinante analizar matemáticamente qué tan grandes pueden ser sus pérdidas extremas (riesgo de cola) y su volatilidad ante las noticias de nuestra realidad actual.
-    """)
+    st.write(f"Analizamos **{stock}** por su relevancia en el contexto geopolítico actual. Como principal contratista militar global, su volatilidad refleja las tensiones internacionales actuales, siendo un caso de estudio ideal para riesgos extremos.")
 
 # --- 2. ESTADÍSTICA DESCRIPTIVA (Inciso B) ---
 st.header("1. Análisis Descriptivo de los Retornos")
-media = returns.mean()
-sesgo = returns.skew()
-curtosis = returns.kurtosis() # Fisher (Exceso de curtosis)
+curtosis = returns.kurtosis()
+st.info(f"**Análisis:** El exceso de curtosis de **{curtosis:.2f}** confirma colas pesadas. La distribución **t-Student** es nuestra mejor candidata teórica frente a la Normal.")
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Total Observaciones", len(returns))
-c2.metric("Media Diaria", f"{media:.6f}")
-c3.metric("Sesgo (Skewness)", f"{sesgo:.4f}")
-c4.metric("Exceso de Curtosis", f"{curtosis:.4f}")
-
-st.info(f"""
-**Análisis de Distribución:** Antes de abordar los modelos, el análisis descriptivo revela un nivel de exceso de curtosis altísimo (**{curtosis:.2f}**). Esto nos indica contundentemente que la distribución de LMT presenta **"colas pesadas"** (leptocurtosis). Por lo tanto, asumir una distribución Normal tradicional sería un error; la distribución **t-Student** se perfila como nuestra mejor candidata teórica. De hecho, al realizar pruebas gráficas (Q-Q plot) y el test de Kolmogorov-Smirnov (K-S) en nuestro análisis previo, confirmamos que los rendimientos se ajustan a una t-Student.
-""")
-
-# --- 3. VaR y ES ESTÁTICO (Inciso C) ---
+# --- 3. VaR y ES ESTÁTICO (Inciso C) + NUEVA GRÁFICA ---
 st.header("2. Estimación Estática: VaR y ES (Serie Completa)")
 
 @st.cache_data
@@ -67,30 +51,22 @@ def calc_static_risk(rets, n_sim):
     niveles = [0.95, 0.975, 0.99]
     res = []
     mu, sigma = rets.mean(), rets.std(ddof=1)
-    
-    # Ajuste t-Student
     df_t, loc_t, scale_t = t.fit(rets)
-    # Monte Carlo Simulación
     np.random.seed(42)
     sim_mc = np.random.normal(mu, sigma, n_sim)
     
     for conf in niveles:
         alpha = 1 - conf
-        # Histórico
         vh = np.percentile(rets, alpha*100)
         esh = rets[rets <= vh].mean()
-        # Normal
         z = norm.ppf(alpha)
         vn = mu + z * sigma
         esn = mu - sigma * (norm.pdf(z)/alpha)
-        # t-Student
         ts = t.ppf(alpha, df_t)
         vt = loc_t + ts * scale_t
         est = loc_t - scale_t * (t.pdf(ts, df_t)/alpha) * ((df_t + ts**2)/(df_t - 1))
-        # Monte Carlo
         vmc = np.percentile(sim_mc, alpha*100)
         esmc = sim_mc[sim_mc <= vmc].mean()
-        
         res.append([f"{conf*100}%", vh, esh, vn, esn, vt, est, vmc, esmc])
     
     return pd.DataFrame(res, columns=['Confianza', 'VaR Hist', 'ES Hist', 'VaR Norm', 'ES Norm', 'VaR t-Stud', 'ES t-Stud', 'VaR MC', 'ES MC'])
@@ -98,93 +74,92 @@ def calc_static_risk(rets, n_sim):
 df_estatico = calc_static_risk(returns, n_sim)
 st.dataframe(df_estatico.style.format({c: "{:.4f}" for c in df_estatico.columns if c != 'Confianza'}), use_container_width=True)
 
-st.success("""
-**Conclusiones de la Tabla Estática:**
-* **VaR t-Student:** Notamos que con un nivel de confianza del 95% (1 de cada 20 días) la pérdida esperada promedio rondaría el -3.24%. Al 99% de confianza (1 de cada 100 días, es decir 2 o 3 veces al año), el golpe es mucho más severo (-5.86%).
-* **ES Histórico y Normalidad:** Al ver los diferentes modelos aplicados en el ES, notamos que asumir normalidad arroja estimaciones menos severas. Sin embargo, al ver el histórico y la t-Student, estos nos dan una pérdida esperada mucho mayor. Esto reafirma que nuestro modelo es de colas pesadas y consolida a la t-Student como nuestra mejor candidata.
-""")
+# --- NUEVA GRÁFICA COMPARATIVA ESTÁTICA ---
+row_99 = df_estatico[df_estatico['Confianza'] == '99.0%'].iloc[0]
+fig_comp = go.Figure()
+methods = ['Histórico', 'Normal', 't-Student', 'Monte Carlo']
+vars_99 = [row_99['VaR Hist'], row_99['VaR Norm'], row_99['VaR t-Stud'], row_99['VaR MC']]
+ess_99 = [row_99['ES Hist'], row_99['ES Norm'], row_99['ES t-Stud'], row_99['ES MC']]
 
-# --- 4. ROLLING WINDOWS (Incisos D y F) ---
+fig_comp.add_trace(go.Bar(name='VaR 99%', x=methods, y=vars_99, marker_color='rgb(55, 83, 109)'))
+fig_comp.add_trace(go.Bar(name='ES 99%', x=methods, y=ess_99, marker_color='rgb(26, 118, 255)'))
+fig_comp.update_layout(title='Comparativa de Modelos Estáticos (Nivel 99%)', barmode='group', template='plotly_white', yaxis_title='Rendimiento')
+st.plotly_chart(fig_comp, use_container_width=True)
+
+# --- 4. ROLLING WINDOWS (Incisos D, E, F) ---
 st.header(f"3. Análisis Dinámico: Ventanas Móviles ({window} días)")
-st.markdown("Cálculo del riesgo para el día $t+1$ utilizando estrictamente la información histórica disponible hasta el día $t$.")
 
 n = len(returns)
-# Inicializar arrays con NaNs
-var_h_95, var_h_99 = np.full(n, np.nan), np.full(n, np.nan)
-es_h_95, es_h_99 = np.full(n, np.nan), np.full(n, np.nan)
-var_n_95, var_n_99 = np.full(n, np.nan), np.full(n, np.nan)
-es_n_95, es_n_99 = np.full(n, np.nan), np.full(n, np.nan)
-var_vol_95, var_vol_99 = np.full(n, np.nan), np.full(n, np.nan)
+var_h_99, es_h_99 = np.full(n, np.nan), np.full(n, np.nan)
+var_n_99, es_n_99 = np.full(n, np.nan), np.full(n, np.nan)
+var_t_99, es_t_99 = np.full(n, np.nan), np.full(n, np.nan) # NUEVO: t-Student dinámica
+var_vol_99 = np.full(n, np.nan)
 
-z_95, z_99 = norm.ppf(0.05), norm.ppf(0.01)
+z_99 = norm.ppf(0.01)
 ret_vals = returns.values
 
-# Lógica del Rolling Window (Predecir t+1 sin sesgo de anticipación)
+# Barra de progreso para el cálculo que es más intensivo con t.fit
+bar = st.progress(0)
 for i in range(window, n):
-    win = ret_vals[i - window : i] # Solo ve el pasado
+    win = ret_vals[i - window : i]
     
     # Histórico
-    vh95, vh99 = np.percentile(win, 5), np.percentile(win, 1)
-    var_h_95[i], var_h_99[i] = vh95, vh99
-    es_h_95[i], es_h_99[i] = win[win <= vh95].mean(), win[win <= vh99].mean()
+    vh99 = np.percentile(win, 1)
+    var_h_99[i], es_h_99[i] = vh99, win[win <= vh99].mean()
     
-    # Normal Paramétrico
+    # Normal
     mu, sigma = np.mean(win), np.std(win, ddof=1)
-    var_n_95[i], var_n_99[i] = mu + z_95*sigma, mu + z_99*sigma
-    es_n_95[i] = mu - sigma * (norm.pdf(z_95)/0.05)
+    var_n_99[i] = mu + z_99 * sigma
     es_n_99[i] = mu - sigma * (norm.pdf(z_99)/0.01)
     
-    # Inciso F: VaR de Volatilidad Móvil (sigma_t * q_alpha asumiendo mu=0)
-    var_vol_95[i], var_vol_99[i] = z_95 * sigma, z_99 * sigma
+    # t-Student Dinámica (Ajuste por ventana)
+    dft, loct, scalet = t.fit(win)
+    t99 = t.ppf(0.01, dft)
+    var_t_99[i] = loct + t99 * scalet
+    es_t_99[i] = loct - scalet * (t.pdf(t99, dft)/0.01) * ((dft + t99**2)/(dft - 1))
+    
+    # Inciso F
+    var_vol_99[i] = z_99 * sigma
+    
+    if i % 100 == 0: bar.progress(i/n)
+bar.empty()
 
-# Consolidar en DataFrame
 df_dyn = pd.DataFrame(index=returns.index)
 df_dyn['Retornos'] = returns
 df_dyn['VaR_H_99'], df_dyn['ES_H_99'] = var_h_99, es_h_99
 df_dyn['VaR_N_99'], df_dyn['ES_N_99'] = var_n_99, es_n_99
+df_dyn['VaR_T_99'], df_dyn['ES_T_99'] = var_t_99, es_t_99
 df_dyn['VaR_Vol_99'] = var_vol_99
 
-# Gráfica Plotly
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=df_dyn.index, y=df_dyn['Retornos'], mode='lines', name='Retornos (P&L)', line=dict(color='lightgray', width=1), opacity=0.7))
-fig.add_trace(go.Scatter(x=df_dyn.index, y=df_dyn['VaR_N_99'], mode='lines', name='VaR 99% (Normal)', line=dict(color='blue', dash='dot')))
-fig.add_trace(go.Scatter(x=df_dyn.index, y=df_dyn['VaR_H_99'], mode='lines', name='VaR 99% (Histórico)', line=dict(color='orange')))
-fig.add_trace(go.Scatter(x=df_dyn.index, y=df_dyn['ES_H_99'], mode='lines', name='ES 99% (Histórico)', line=dict(color='red')))
-fig.add_trace(go.Scatter(x=df_dyn.index, y=df_dyn['VaR_Vol_99'], mode='lines', name='VaR 99% Vol Móvil (μ=0)', line=dict(color='black', width=1)))
+# Gráfica Dinámica
+fig_dyn = go.Figure()
+fig_dyn.add_trace(go.Scatter(x=df_dyn.index, y=df_dyn['Retornos'], name='Retornos', line=dict(color='lightgray', width=1), opacity=0.5))
+fig_dyn.add_trace(go.Scatter(x=df_dyn.index, y=df_dyn['VaR_H_99'], name='VaR Histórico', line=dict(color='orange')))
+fig_dyn.add_trace(go.Scatter(x=df_dyn.index, y=df_dyn['VaR_T_99'], name='VaR t-Student', line=dict(color='green', dash='dash')))
+fig_dyn.add_trace(go.Scatter(x=df_dyn.index, y=df_dyn['ES_T_99'], name='ES t-Student', line=dict(color='darkgreen')))
+fig_dyn.add_trace(go.Scatter(x=df_dyn.index, y=df_dyn['VaR_Vol_99'], name='VaR Vol. Móvil', line=dict(color='black', width=1)))
 
-fig.update_layout(title='Evolución del Riesgo al 99% (Rolling Window)', xaxis_title='Fecha', yaxis_title='Rendimientos', template='plotly_white', hovermode='x unified', height=600)
-st.plotly_chart(fig, use_container_width=True)
+fig_dyn.update_layout(title='Riesgo Dinámico al 99% (Rolling Window)', template='plotly_white', height=600)
+st.plotly_chart(fig_dyn, use_container_width=True)
 
-st.warning("""
-### Análisis Visual de las Gráficas y la Ventana Móvil:
-De la gráfica interactiva anterior (y de los análisis previos generados), podemos concluir de manera contundente:
-
-1. **Adaptabilidad a la realidad:** La gráfica demuestra que la ventana móvil es indispensable porque ajusta el nivel de alarma a la realidad actual. Endurece el riesgo en las crisis y lo relaja en tiempos de paz. Por ejemplo, cuando sucede la crisis del COVID-19 en 2020, existe una caída preocupante y las líneas del VaR/ES caen a un pozo para proteger la cartera.
-2. **El "Efecto Memoria" del Histórico:** Visualmente, el método histórico se dibuja como "escalones" o líneas planas durante las crisis. Esto ocurre porque la ventana se "trauma" con la caída severa y recuerda ese peor día durante exactamente 252 días, hasta que el dato caduca y la línea vuelve a estabilizarse.
-3. **El VaR no es suficiente (La importancia del ES):** Visualmente comprobamos cómo los picos grises (los retornos) logran perforar y caer por debajo de las líneas de VaR en momentos de estrés extremo. El VaR solo nos marca la frontera, pero necesitamos el apoyo del ES (Expected Shortfall) para capturar toda la profundidad de esas pérdidas fuera del límite.
-4. **Validación del Supuesto $\mu=0$:** La línea negra (VaR Volatilidad Móvil) y la línea punteada (VaR Normal Clásico) son prácticamente un clon visual. Esto demuestra que asumir la media como cero en retornos diarios de alta frecuencia es un atajo válido que no sacrifica precisión.
-""")
-
-# --- 5. BACKTESTING Y VIOLACIONES (Incisos E y F) ---
+# --- 5. BACKTESTING FINAL (Con t-Student) ---
 st.header("4. Backtesting: Eficiencia de los Modelos")
-st.markdown("Un modelo eficiente al 99% de confianza debería tener un porcentaje de violaciones cercano al 1% (y siempre menor al 2.5% según el límite de tolerancia aceptable).")
-
 df_test = df_dyn.dropna()
 n_obs = len(df_test)
 
-def count_violations(col_risk):
-    return (df_test['Retornos'] < df_test[col_risk]).sum()
+def count_viol(col): return (df_test['Retornos'] < df_test[col]).sum()
 
 viol_data = {
-    'Métrica de Riesgo': ['VaR 99% Normal', 'ES 99% Normal', 'VaR 99% Histórico', 'ES 99% Histórico', 'VaR 99% Vol. Móvil (Inciso F)'],
-    'Violaciones (#)': [count_violations('VaR_N_99'), count_violations('ES_N_99'), count_violations('VaR_H_99'), count_violations('ES_H_99'), count_violations('VaR_Vol_99')],
+    'Modelo (99% Confianza)': ['Normal', 'Histórico', 't-Student (Dinámico)', 'Volatilidad Móvil (μ=0)'],
+    'Violaciones VaR (#)': [count_viol('VaR_N_99'), count_viol('VaR_H_99'), count_viol('VaR_T_99'), count_viol('VaR_Vol_99')],
+    'Violaciones ES (#)': [count_viol('ES_N_99'), count_viol('ES_H_99'), count_viol('ES_T_99'), "-"],
 }
 
 df_viol = pd.DataFrame(viol_data)
-df_viol['% de la Muestra'] = (df_viol['Violaciones (#)'] / n_obs) * 100
+df_viol['% Violaciones VaR'] = (df_viol['Violaciones VaR (#)'] / n_obs) * 100
 
-st.table(df_viol.style.format({'% de la Muestra': "{:.2f}%"}))
+st.table(df_viol.style.format({'% Violaciones VaR': "{:.2f}%"}))
 
 st.success("""
-**Evaluación Final:** El backtesting revela claramente la debilidad de los modelos paramétricos asumiendo normalidad frente a activos con colas pesadas. En este caso particular, notamos que para la distribución t-Student / Histórica se asumen mayores pérdidas, ajustándose de manera más conservadora a la realidad de las crisis bélicas y de salud observadas en la historia de LMT.
+**Conclusión Final:** Al integrar la **t-Student**, observamos que es el modelo que mejor equilibra la realidad de las colas pesadas sin ser tan extremo como el histórico en periodos de post-crisis. El Expected Shortfall (ES) de la t-Student demuestra ser la métrica más robusta, capturando de manera eficiente las pérdidas que el VaR tradicional ignora.
 """)
