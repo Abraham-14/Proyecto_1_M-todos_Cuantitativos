@@ -17,4 +17,4 @@ El análisis incorpora el uso de **ventanas móviles (rolling windows)** de 252 
 Para ejecutar este código, necesitas tener Python instalado y las siguientes librerías. Puedes instalarlas ejecutando este comando en tu terminal:
 
 ```bash
-pip install streamlit yfinance pandas numpy matplotlib scipy
+pip install streamlit yfinance pandas numpy matplotlib scipy plotly
