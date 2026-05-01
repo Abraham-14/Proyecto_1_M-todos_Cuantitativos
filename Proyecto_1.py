@@ -33,10 +33,10 @@ st.title(f"📊 Proyecto de Riesgo de Mercado: {stock}")
 
 st.markdown("""
 ### Introducción
-En este proyecto estimamos los riesgos de mercado mediante dos medidas fundamentales: **Value at Risk (VaR)** y el **Expected Shortfall (ES)**. El objetivo es calcular qué tan bien se adaptan los distintos modelos en su forma paramétrica, histórica y simulada. Adicionalmente, utilizamos ventanas móviles (*rolling windows*) para evitar el sesgo de anticipación, finalizando con un *Backtesting* riguroso para comprobar su eficacia real en el mercado.
+En este proyecto estimamos los riesgos de mercado mediante dos medidas fundamentales: **Value at Risk (VaR)** y el **Expected Shortfall (ES)**. El objetivo es calcular qué tan bien se adaptan los distintos modelos en su forma paramétrica, histórica y simulada. Adicionalmente, utilizamos ventanas móviles (*rolling windows*) para evitar el sesgo de anticipación, finalizando con un *Backtesting* para comprobar su eficacia real en el mercado.
 """)
 
-with st.expander("¿Por qué elegimos Lockheed Martin (LMT)?", expanded=True):
+with st.expander("¿Por qué Lockheed Martin (LMT)?", expanded=True):
     st.write("""
     Dado que el precio de las acciones refleja el entorno macroeconómico y geopolítico, un tema de alta relevancia actual son los conflictos bélicos (por ejemplo, las tensiones entre Israel e Irán, y la guerra entre Rusia y Ucrania). 
     
