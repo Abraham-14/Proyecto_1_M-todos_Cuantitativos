@@ -72,7 +72,7 @@ def calc_static_risk(rets, n_sim):
     df_t, loc_t, scale_t = t.fit(rets)
     # Monte Carlo Simulación
     np.random.seed(42)
-    sim_mc = np.random.normal(mu, sigma, n_sim)
+    sim_mc = t.rvs(df_t, loc=loc_t, scale=scale_t, size=n_sim)
     
     for conf in niveles:
         alpha = 1 - conf
@@ -100,11 +100,11 @@ st.dataframe(df_estatico.style.format({c: "{:.4f}" for c in df_estatico.columns 
 
 st.success("""
 **Conclusiones de la Tabla Estática:**
-* **VaR t-Student:** Notamos que con un nivel de confianza del 95% (1 de cada 20 días) la pérdida esperada promedio rondaría el -3.24%. Al 99% de confianza (1 de cada 100 días, es decir 2 o 3 veces al año), el golpe es mucho más severo (-5.86%).
+* **VaR t-Student:** Notamos que con un nivel de confianza del 95% (1 de cada 20 días) la pérdida esperada promedio rondaría el -1.86%. Al 99% de confianza (1 de cada 100 días, es decir 2 o 3 veces al año), el golpe es mucho más severo (-3.56%).
 * **ES Histórico y Normalidad:** Al ver los diferentes modelos aplicados en el ES, notamos que asumir normalidad arroja estimaciones menos severas. Sin embargo, al ver el histórico y la t-Student, estos nos dan una pérdida esperada mucho mayor. Esto reafirma que nuestro modelo es de colas pesadas y consolida a la t-Student como nuestra mejor candidata.
 """)
 
-# --- 4. ROLLING WINDOWS (Incisos D y F) ---
+# --- 4. ROLLING WINDOW (Incisos D y F) ---
 st.header(f"3. Análisis Dinámico: Ventanas Móviles ({window} días)")
 st.markdown("Cálculo del riesgo para el día $t+1$ utilizando estrictamente la información histórica disponible hasta el día $t$.")
 
@@ -157,9 +157,9 @@ st.plotly_chart(fig, use_container_width=True)
 
 st.warning("""
 ### Análisis Visual de las Gráficas y la Ventana Móvil:
-De la gráfica interactiva anterior (y de los análisis previos generados), podemos concluir de manera contundente:
+De la gráfica interactiva anterior, y de los análisis previos generados, podemos concluir:
 
-1. **Adaptabilidad a la realidad:** La gráfica demuestra que la ventana móvil es indispensable porque ajusta el nivel de alarma a la realidad actual. Endurece el riesgo en las crisis y lo relaja en tiempos de paz. Por ejemplo, cuando sucede la crisis del COVID-19 en 2020, existe una caída preocupante y las líneas del VaR/ES caen a un pozo para proteger la cartera.
+1. **Adaptabilidad a la realidad:** La gráfica demuestra que la ventana móvil es necesaria porque ajusta el nivel de "alarma" a la realidad actual. Aumenta el riesgo en las crisis y lo disminuye en tiempos de paz. Por ejemplo, cuando sucede la crisis del COVID-19 en 2020, existe una caída preocupante y las líneas del VaR/ES caen a un pozo para proteger la cartera.
 2. **El "Efecto Memoria" del Histórico:** Visualmente, el método histórico se dibuja como "escalones" o líneas planas durante las crisis. Esto ocurre porque la ventana se "trauma" con la caída severa y recuerda ese peor día durante exactamente 252 días, hasta que el dato caduca y la línea vuelve a estabilizarse.
 3. **El VaR no es suficiente (La importancia del ES):** Visualmente comprobamos cómo los picos grises (los retornos) logran perforar y caer por debajo de las líneas de VaR en momentos de estrés extremo. El VaR solo nos marca la frontera, pero necesitamos el apoyo del ES (Expected Shortfall) para capturar toda la profundidad de esas pérdidas fuera del límite.
 4. **Validación del Supuesto $\mu=0$:** La línea negra (VaR Volatilidad Móvil) y la línea punteada (VaR Normal Clásico) son prácticamente un clon visual. Esto demuestra que asumir la media como cero en retornos diarios de alta frecuencia es un atajo válido que no sacrifica precisión.
