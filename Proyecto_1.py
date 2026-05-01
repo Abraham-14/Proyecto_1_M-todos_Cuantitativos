@@ -19,7 +19,7 @@ def load_data(ticker, start_date):
     return prices, returns
 
 # --- SIDEBAR PRINCIPAL ---
-st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Lockheed_Martin_logo.svg/1200px-Lockheed_Martin_logo.svg.png", width=200)
+st.sidebar.image("Lockheed.png", width=200)
 st.sidebar.header("Parámetros del Proyecto")
 stock = st.sidebar.text_input("Activo (Ticker)", value="LMT")
 start_date = st.sidebar.date_input("Fecha de Inicio", value=pd.to_datetime("2010-01-01"))
